@@ -12,35 +12,28 @@ from database import get_db
 
 app = FastAPI(title="OCR API")
 
-# --- Config ---
-MAX_FILE_SIZE = 8 * 1024 * 1024  # 8 MB
-MAX_IMAGE_DIM = 1024  # max width/height in pixels
+MAX_FILE_SIZE = 8 * 1024 * 1024
+MAX_IMAGE_DIM = 1024  
 
-# --- Preprocessing ---
 def preprocess_image_bytes(file_bytes):
     arr = np.frombuffer(file_bytes, np.uint8)
     img = cv2.imdecode(arr, cv2.IMREAD_GRAYSCALE)
 
-    # Resize large images
     h, w = img.shape
     if max(h, w) > MAX_IMAGE_DIM:
         scale = MAX_IMAGE_DIM / max(h, w)
         img = cv2.resize(img, (int(w * scale), int(h * scale)))
 
-    # Denoise
     img = cv2.fastNlMeansDenoising(img, None, 30, 7, 21)
 
-    # Adaptive threshold
     img = cv2.adaptiveThreshold(img, 255,
                                 cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
                                 cv2.THRESH_BINARY, 35, 11)
 
-    # Morphological closing
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2,2))
     img = cv2.morphologyEx(img, cv2.MORPH_CLOSE, kernel)
     return img
 
-# --- Helpers ---
 def normalize_number(text):
     marathi_to_eng = str.maketrans("०१२३४५६७८९", "0123456789")
     return (text or "").translate(marathi_to_eng)
@@ -64,7 +57,6 @@ def extract_fields(text_lines):
         "Rs": 100
     }
 
-    # Receipt No
     m = re.search(r"(?:पावती.?नं|पावती.?क्रमांक|Receipt.?No)[:\s]*([0-9०-९]+)", text)
     if m:
         data["Receipt No"] = normalize_number(m.group(1))
@@ -74,19 +66,15 @@ def extract_fields(text_lines):
                 num = digits_only(text_lines[i+1])
                 if num: data["Receipt No"] = num
 
-    # Date
     m = re.search(r"(?:दिनांक|तारीख|Date)[:\s]*([0-9०-९/-]+)", text)
     if m: data["Date"] = keep_date_chars(m.group(1))
 
-    # Mobile
     m = re.search(r"(?:मोबा\.?नं|Mobile)[:\s]*([0-9०-९]{10,})", text)
     if m: data["Mobile No"] = normalize_number(m.group(1))
 
-    # Amount
     m = re.search(r"(?:एकूण|रक्कम|Total)[:\s]*([0-9०-९]+)", text)
     if m: data["Rs"] = normalize_number(m.group(1))
 
-    # Sequential lookup
     for i, line in enumerate(text_lines):
         if "श्री" in line or "श्रीम" in line:
             if i+1 < len(text_lines): data["Name"] = text_lines[i+1]
@@ -105,10 +93,8 @@ def extract_fields(text_lines):
 
     return data
 
-# --- Load OCR model globally (once) ---
-reader = easyocr.Reader(['mr'], gpu=False)  # Marathi only
-
-# --- OCR API route ---
+reader = easyocr.Reader(['mr'], gpu=False) 
+-
 @app.post("/ocr/")
 async def ocr_api(
     file: UploadFile = File(...),
@@ -118,11 +104,9 @@ async def ocr_api(
 ):
     contents = await file.read()
 
-    # File size check
     if len(contents) > MAX_FILE_SIZE:
         raise HTTPException(status_code=413, detail="File too large. Max 8MB allowed.")
 
-    # Save image to DB
     db_image = MemberImage(
         image=contents,
         member_image_id=member_image_id,
@@ -132,13 +116,10 @@ async def ocr_api(
     db.commit()
     db.refresh(db_image)
 
-    # Preprocess
     img = preprocess_image_bytes(contents)
 
-    # OCR
     results = reader.readtext(img, detail=0)
 
-    # Extract fields
     fields = extract_fields(results)
     fields["db_id"] = db_image.id
 
