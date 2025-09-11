@@ -1,7 +1,8 @@
 fastapi
 uvicorn
-easyocr
+sqlalchemy
+psycopg2-binary
 opencv-python-headless
 numpy
-psycopg2-binary
-sqlalchemy
+easyocr
+python-dotenv
