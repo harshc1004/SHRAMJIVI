@@ -93,8 +93,7 @@ def extract_fields(text_lines):
 
     return data
 
-reader = easyocr.Reader(['mr'], gpu=False) 
--
+reader = easyocr.Reader(['mr'], gpu=False)
 @app.post("/ocr/")
 async def ocr_api(
     file: UploadFile = File(...),
