@@ -32,7 +32,7 @@ class NotificationImageMember(Base):
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="OCR API")
-reader = easyocr.Reader(['mr'], gpu=False)
+reader = easyocr.Reader(['mr','en'], gpu=True)
 
 
 def normalize_number(text):
